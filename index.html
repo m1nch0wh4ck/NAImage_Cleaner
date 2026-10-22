@@ -87,6 +87,24 @@
         <span>RGB 최하위 비트도 정리 <small>(권장 · 색 변화 1/256 이하)</small></span>
       </label>
       <p class="hint">알파값을 4단위로 반올림해 최하위 2비트를 지웁니다. 완전 불투명(255)·완전 투명(0)은 그대로이고, 반투명 가장자리는 최대 2단계만 바뀝니다. 완전 투명 픽셀 뒤에 숨은 색상값도 비웁니다.</p>
+      <label class="check">
+        <input type="checkbox" id="trim">
+        <span>보이는 영역에 맞춰 여백 자르기 <small>(콜라주·소개문용)</small></span>
+      </label>
+      <div class="sub-opts" id="trim-opts" hidden>
+        <div class="opt-row">
+          <label class="opt-label" for="trim-alpha">옅은 픽셀 무시</label>
+          <div class="quality">
+            <input type="range" id="trim-alpha" min="0" max="128" step="4" value="8" aria-describedby="trim-hint">
+            <output id="trim-alpha-out" for="trim-alpha" class="tnum wide">알파 8 이하</output>
+          </div>
+        </div>
+        <div class="opt-row">
+          <label class="opt-label" for="trim-pad">남길 여백</label>
+          <span class="px-input"><input type="number" id="trim-pad" min="0" max="500" step="1" value="0" inputmode="numeric" class="tnum"><span>px</span></span>
+        </div>
+        <p class="hint" id="trim-hint">눈에 보이는 그림을 감싸는 가장 작은 사각형으로 잘라냅니다. 배경을 지운 뒤 가장자리에 남은 거의 투명한 픽셀은 무시합니다 — 머리카락 끝처럼 옅은 부분이 잘리면 값을 낮추고, 여백이 덜 잘리면 올리세요. 확대·축소 없이 잘라내기만 하므로 화질은 그대로입니다.</p>
+      </div>
     </div>
   </section>
 
@@ -126,6 +144,13 @@
     <ul>
       <li>배경 있는 일러스트 → <b>일반 이미지</b>. 용량이 가장 작습니다.</li>
       <li>캐릭터만 오려낸 스티커형 → <b>투명 이미지</b>. 일반 모드로 바꾸면 투명한 곳이 흰색/검은색으로 채워집니다.</li>
+    </ul>
+    <h3>여백 자르기 (투명 이미지)</h3>
+    <ul>
+      <li>배경을 지운 그림은 캐릭터가 보이는 범위보다 파일 크기가 훨씬 넓어서, HTML·CSS로 배치하면 보이지 않는 여백까지 자리를 차지합니다. 이 옵션을 켜면 보이는 그림에 딱 맞게 잘라서, 이미지 상자가 곧 실루엣의 바깥 사각형이 됩니다.</li>
+      <li><b>옅은 픽셀 무시</b>: 알파가 이 값 이하인 픽셀은 없는 것으로 칩니다. 기본 8(약 3%)은 배경 제거 뒤 흩어진 찌꺼기만 무시하는 정도입니다.</li>
+      <li><b>남길 여백</b>: 그림자·빛번짐이 잘리지 않게 몇 px 남기고 싶을 때. 원래 파일보다 넓어지면 바깥은 투명으로 채웁니다.</li>
+      <li>결과에 <code>원래 크기 → 자른 크기</code>가 표시됩니다.</li>
     </ul>
     <h3>휴대폰에서</h3>
     <ul>
