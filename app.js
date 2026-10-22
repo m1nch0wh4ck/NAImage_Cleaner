@@ -47,7 +47,7 @@ function onSettingsChanged() {
   syncOptions();
   let reset = 0;
   for (const it of state.items) {
-    if (it.result || it.state === "failed") { it.result = null; it.state = "waiting"; it.error = null; it.failedChecks = null; reset++; }
+    if (it.result || it.state === "failed") { clearResult(it); it.state = "waiting"; it.error = null; it.failedChecks = null; reset++; }
   }
   if (reset) toast("설정이 바뀌어서 다시 변환해야 합니다.");
   renderAll();
@@ -102,12 +102,23 @@ async function makeThumb(file) {
   img.src = "";
   return blob ? URL.createObjectURL(blob) : null;
 }
-function revokeThumb(it) { if (it.thumb) { URL.revokeObjectURL(it.thumb); it.thumb = null; } }
+function revokeThumb(it) { if (it.thumb) { URL.revokeObjectURL(it.thumb); it.thumb = null; } revokeOrig(it); }
+// 미리보기용 주소: 결과 이미지, (여백 자르기 때) 원본 이미지. 결과가 바뀌거나 빠지면 비운다
+function revokePreview(it) { if (it.preview) { URL.revokeObjectURL(it.preview); it.preview = null; } }
+function revokeOrig(it) { if (it.orig) { URL.revokeObjectURL(it.orig); it.orig = null; } }
+function clearResult(it) { it.result = null; revokePreview(it); }
+function setResult(it, r) {
+  revokePreview(it);
+  it.result = r;
+  it.preview = URL.createObjectURL(r.blob);
+  if (r.stats.trim && !it.orig) it.orig = URL.createObjectURL(it.file);
+}
 
 function removeItem(id) {
   const i = state.items.findIndex((x) => x.id === id);
   if (i < 0) return;
   revokeThumb(state.items[i]);
+  revokePreview(state.items[i]);
   state.items.splice(i, 1);
   assignNames();
   renderAll();
@@ -115,7 +126,7 @@ function removeItem(id) {
 
 function clearAll() {
   if (state.running) return;
-  state.items.forEach(revokeThumb);
+  state.items.forEach((it) => { revokeThumb(it); revokePreview(it); });
   state.items = [];
   renderAll();
 }
@@ -197,12 +208,46 @@ function resultBlock(it) {
     </div>
     <div class="chips"><span class="chip ok">✔ 검증 완료 · 메타데이터·스텔스 정보 없음</span></div>
     ${extra.length ? `<div class="file-meta">${extra.map((e) => `<span>${esc(e)}</span>`).join("")}</div>` : ""}
+    ${previewBlock(it)}
     ${checkList(r.checks, false)}
     <div class="result-actions">
       <button class="btn small primary" data-act="save" data-id="${it.id}" type="button">받기</button>
       ${canShare ? `<button class="btn small" data-act="share" data-id="${it.id}" type="button">공유 · 사진에 저장</button>` : ""}
     </div>
   </div>`;
+}
+
+/** 결과 미리보기. 여백을 잘랐으면 원본 위에 잘린 선을 함께 보여 준다 */
+function previewBlock(it) {
+  const r = it.result;
+  if (!it.preview) return "";
+  const t = r.stats.trim;
+  const cut = t && !t.empty && !t.same;
+  const checker = r.format === "png" ? " checker" : "";
+  const out = `<figure class="pv">
+      <a class="pv-frame${checker}" href="${it.preview}" target="_blank" rel="noopener"><img src="${it.preview}" alt="결과 미리보기"></a>
+      <figcaption>결과 <span class="tnum">${r.width}×${r.height}</span></figcaption>
+    </figure>`;
+  let before = "";
+  if (cut && it.orig) {
+    // 원본 좌표 그대로 SVG에 그려서 비율과 상관없이 점선이 정확히 겹치게 한다.
+    // 원본보다 넓게 남긴 여백은 원본 가장자리까지만 표시
+    const W = t.fromW, H = t.fromH;
+    const x = Math.max(0, t.left - t.pad), y = Math.max(0, t.top - t.pad);
+    const w = Math.min(W, t.left - t.pad + t.toW) - x, h = Math.min(H, t.top - t.pad + t.toH) - y;
+    before = `<figure class="pv">
+      <div class="pv-frame checker"><svg class="pv-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="원본과 잘리는 선">
+        <image href="${it.orig}" width="${W}" height="${H}"/>
+        <path d="M0 0H${W}V${H}H0Z M${x} ${y}v${h}h${w}v${-h}Z" fill="rgba(0,0,0,.4)" fill-rule="evenodd"/>
+        <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="#ff3b6b" stroke-width="2" stroke-dasharray="6 4" vector-effect="non-scaling-stroke"/>
+      </svg></div>
+      <figcaption>원본 · 점선 안쪽만 남음 <span class="tnum">${W}×${H}</span></figcaption>
+    </figure>`;
+  }
+  return `<details class="preview"${cut ? " open" : ""}><summary>미리보기</summary>
+    <div class="pv-grid${before ? " two" : ""}">${before}${out}</div>
+    <p class="hint">결과 그림을 누르면 원래 크기로 열립니다.</p>
+  </details>`;
 }
 
 function checkList(checks, open) {
@@ -293,13 +338,13 @@ async function convertAll() {
   for (let i = 0; i < queue.length; i++) {
     const it = queue[i];
     if (!state.items.includes(it)) continue;
-    it.state = "converting"; it.error = null; it.result = null; it.failedChecks = null;
+    it.state = "converting"; it.error = null; clearResult(it); it.failedChecks = null;
     renderItem(it);
     setProgress(i, queue.length, `${i + 1} / ${queue.length} · ${it.file.name}`);
     await tick();
     try {
       const r = await convertFile(it.file, s);
-      if (r.verified) { it.result = r; it.state = "done"; ok++; }
+      if (r.verified) { setResult(it, r); it.state = "done"; ok++; }
       else { it.state = "failed"; it.error = "검증을 통과하지 못해 내려받기를 막았습니다."; it.failedChecks = r.checks; fail++; }
     } catch (e) {
       console.error(e);
