@@ -26,6 +26,9 @@ function settings() {
     quality: Number($("#quality").value),
     background: document.querySelector('input[name="bg"]:checked').value,
     scrubRgb: $("#scrub-rgb").checked,
+    trim: $("#trim").checked,
+    trimAlpha: Number($("#trim-alpha").value),
+    trimPad: Math.max(0, Math.round(Number($("#trim-pad").value) || 0)),
   };
 }
 function outExt(s = settings()) { return s.mode === "transparent" ? "png" : EXT[s.format]; }
@@ -35,6 +38,8 @@ function syncOptions() {
   $("#opts-normal").hidden = s.mode !== "normal";
   $("#opts-transparent").hidden = s.mode !== "transparent";
   $("#quality-out").textContent = `${s.quality}%`;
+  $("#trim-opts").hidden = !s.trim;
+  $("#trim-alpha-out").textContent = s.trimAlpha === 0 ? "무시 안 함" : `알파 ${s.trimAlpha} 이하`;
   updateConvertButton();
 }
 
@@ -175,6 +180,12 @@ function resultBlock(it) {
   if (r.format === "png") {
     extra.push(`알파 바뀐 픽셀 ${r.stats.alphaChanged.toLocaleString()}개 (최대 ${r.stats.maxAlphaDelta}단계)`);
     if (r.stats.hiddenRgbCleared) extra.push(`투명 픽셀 숨은 색 ${r.stats.hiddenRgbCleared.toLocaleString()}개 비움`);
+    const t = r.stats.trim;
+    if (t) {
+      if (t.empty) extra.push("보이는 픽셀이 없어 자르지 않음");
+      else if (t.same) extra.push("자를 여백 없음");
+      else extra.push(`여백 자르기 ${t.fromW}×${t.fromH} → ${t.toW}×${t.toH}`);
+    }
   }
   if (r.encoder === "libwebp(WASM)") extra.push("libwebp(WASM)로 인코딩");
   const canShare = !!navigator.canShare;
@@ -408,10 +419,12 @@ function init() {
     if (!h.hidden) h.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
-  document.querySelectorAll('input[name="mode"], input[name="format"], input[name="bg"], #scrub-rgb')
+  document.querySelectorAll('input[name="mode"], input[name="format"], input[name="bg"], #scrub-rgb, #trim, #trim-pad')
     .forEach((el) => el.addEventListener("change", onSettingsChanged));
   $("#quality").addEventListener("input", syncOptions);
   $("#quality").addEventListener("change", onSettingsChanged);
+  $("#trim-alpha").addEventListener("input", syncOptions);
+  $("#trim-alpha").addEventListener("change", onSettingsChanged);
 
   $("#file-input").addEventListener("change", (e) => { addFiles([...e.target.files]); e.target.value = ""; });
   const drop = $("#drop");
